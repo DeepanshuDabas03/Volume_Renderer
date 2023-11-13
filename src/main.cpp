@@ -34,7 +34,7 @@ void setupViewTransformation(unsigned int &);
 void setupProjectionTransformation(unsigned int &);
 glm::vec3 getTrackBallVector(double x, double y);
 float step_size = 1;
-glm::vec4 camPos = glm::vec4(0, 0, 280.0, 1.0);
+glm::vec4 camPos = glm::vec4(0, 0, 500.0, 1.0);
 // Initial camera Position
 // Move camera in camera space
 
