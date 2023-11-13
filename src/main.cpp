@@ -33,8 +33,8 @@ void setupModelTransformation(unsigned int &);
 void setupViewTransformation(unsigned int &);
 void setupProjectionTransformation(unsigned int &);
 glm::vec3 getTrackBallVector(double x, double y);
-float step_size = 1;
-glm::vec4 camPos = glm::vec4(0, 0, 500.0, 1.0);
+float step_size = 0.001;
+glm::vec4 camPos = glm::vec4(0, 0, 280.0, 1.0);
 // Initial camera Position
 // Move camera in camera space
 
@@ -202,20 +202,44 @@ int main(int, char **)
         // Bind shader variables
         vCam_uniform = glGetUniformLocation(shader_program, "camPosition");
         glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
+        if(vCam_uniform == -1)
+        {
+            fprintf(stderr, "Could not bind location: vCam_uniform\n");
+        }
         GLuint vstep_uniform = glGetUniformLocation(shader_program, "stepSize");
+        if(vstep_uniform == -1)
+        {
+            fprintf(stderr, "Could not bind location: vstep_uniform\n");
+        }
         glUniform1f(vstep_uniform, step_size);
         GLuint vextent_min_uniform = glGetUniformLocation(shader_program, "extentmin");
+        if(vextent_min_uniform == -1)
+        {
+            fprintf(stderr, "Could not bind location: vextent_min_uniform\n");
+        }
         glUniform3f(vextent_min_uniform, 0, 0, -z_size);
         GLuint vextent_max_uniform = glGetUniformLocation(shader_program, "extentmax");
+        if(vextent_max_uniform == -1)
+        {
+            fprintf(stderr, "Could not bind location: vextent_max_uniform\n");
+        }
         glUniform3f(vextent_max_uniform, x_size, y_size, 0);
         GLuint texture_1 = glGetUniformLocation(shader_program, "texture3d");
         unsigned int VAO;
+        if(texture_1 == -1)
+        {
+            fprintf(stderr, "Could not bind location: texture_1\n");
+        }
         glGenVertexArrays(1, &VAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_3D, texture3d);
         glUniform1i(texture_1, 0);
 
         GLuint texture_2 = glGetUniformLocation(shader_program, "transferfun");
+        if(texture_2 == -1)
+        {
+            fprintf(stderr, "Could not bind location: texture_2\n");
+        }
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_1D, transferfun);
         glUniform1i(texture_2, 1);
