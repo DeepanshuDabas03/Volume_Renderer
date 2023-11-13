@@ -23,7 +23,7 @@ double oldX, oldY, currentX, currentY;
 bool isDragging = false;
 bool is_ok = false;
 // Variables for the rgba values of the transfer function
-float r, g, b;
+float r, g, bl;
 float alpha = 0.0;
 
 
@@ -186,14 +186,14 @@ int main(int, char **)
             ImGui::SliderFloat("Red Colour Value", &r, 0, 1);
             g = transfer_function[1];
             ImGui::SliderFloat("Green Colour Value", &g, 0, 1);
-            b = transfer_function[2];
-            ImGui::SliderFloat("Blue Colour Value", &b, 0, 1);
+            bl = transfer_function[2];
+            ImGui::SliderFloat("Blue Colour Value", &bl, 0, 1);
             alpha = transfer_function[3];
             ImGui::SliderFloat("Alpha Value", &alpha, 0, 1);
 
             transfer_function[0] = r;
             transfer_function[1] = g;
-            transfer_function[2] = b;
+            transfer_function[2] = bl;
             transfer_function[3] = alpha;
 
             glActiveTexture(GL_TEXTURE1);
