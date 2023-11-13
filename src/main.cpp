@@ -204,9 +204,9 @@ int main(int, char **)
         }
         glUseProgram(shaderProgram);
         {
-            glUseProgram(shader_program);
+            glUseProgram(shaderProgram);
 
-            vCam_uniform = glGetUniformLocation(shader_program, "camPosition");
+            vCam_uniform = glGetUniformLocation(shaderProgram, "camPosition");
             if (vCam_uniform == -1)
             {
                 fprintf(stderr, "Could not bind location: camPosition\n");
@@ -214,7 +214,7 @@ int main(int, char **)
             }
             glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
 
-            GLuint vstep_size = glGetUniformLocation(shader_program, "stepSize");
+            GLuint vstep_size = glGetUniformLocation(shaderProgram, "stepSize");
             if (vstep_size == -1)
             {
                 fprintf(stderr, "Could not bind location: vstep_size\n");
@@ -222,7 +222,7 @@ int main(int, char **)
             }
             glUniform1f(vstep_size, step_size);
 
-            GLuint vExtentMin = glGetUniformLocation(shader_program, "extentmin");
+            GLuint vExtentMin = glGetUniformLocation(shaderProgram, "extentmin");
             if (vExtentMin == -1)
             {
                 fprintf(stderr, "Could not bind location: vExtentMin\n");
@@ -230,7 +230,7 @@ int main(int, char **)
             }
             glUniform3f(vExtentMin, 0, 0, -c);
 
-            GLuint vExtentMax = glGetUniformLocation(shader_program, "extentmax");
+            GLuint vExtentMax = glGetUniformLocation(shaderProgram, "extentmax");
             if (vExtentMax == -1)
             {
                 fprintf(stderr, "Could not bind location: vExtentMax\n");
@@ -238,7 +238,7 @@ int main(int, char **)
             }
             glUniform3f(vExtentMax, a, b, 0);
 
-            GLuint tex1 = glGetUniformLocation(shader_program, "texture3d");
+            GLuint tex1 = glGetUniformLocation(shaderProgram, "texture3d");
             if (tex1 == -1)
             {
                 fprintf(stderr, "Could not bind location: texture3d\n");
@@ -253,7 +253,7 @@ int main(int, char **)
                 glUniform1i(tex1, 0);
             }
 
-            GLuint tex2 = glGetUniformLocation(shader_program, "transferfun");
+            GLuint tex2 = glGetUniformLocation(shaderProgram, "transferfun");
             if (tex2 == -1)
             {
                 fprintf(stderr, "Could not bind location: transferfun\n");
