@@ -53,13 +53,13 @@ int main(int, char **)
     ImVec4 clearColor = ImVec4(1.0f, 1.0f, 1.0f, 1.00f);
     // Setup ImGui binding
     const char *file = "./data/foot.raw";
-    FILE *file = fopen(filename, "rb");
-    if (NULL == file)
+    FILE *f = fopen(file, "rb");
+    if (NULL == f)
     {   fprintf(stderr, "Data file not found\n")
         exit(0);
     }
-    fread(volume_data, sizeof(GLubyte), volume_size, file);
-    fclose(file);
+    fread(volume_data, sizeof(GLubyte), volume_size, f);
+    fclose(f);
     //Transfer function
     // To do
     for (int i = 0; i < 256; i++)
