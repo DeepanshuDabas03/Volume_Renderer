@@ -200,6 +200,7 @@ int main(int, char **)
             glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
             ImGui::End();
         }
+        // get shader variables and uniforms from the shader program
         glUseProgram(shaderProgram);
         {
 
