@@ -2,77 +2,84 @@
 // Include standard headers from OpenGL
 #define GLM_FORCE_RADIANS
 #define GLM_ENABLE_EXPERIMENTAL
-// include glm headers
+// Include GLM core features
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 
 // Include standard headers from C++ 
-#include <cmath>
 #include <iostream>
-#include <unistd.h>
 #include <stdio.h>
-
-// Globals
-bool is_ok = false;
-float alpha = 0.0;
-float r, g, b;
+#include <cmath>
+#include <unistd.h>
+ 
 // Window size
 int screen_width = 800, screen_height = 800;
-// Shader program variables
-GLint vModel_uniform, vView_uniform, vProjection_uniform,vColor_uniform, vCam_uniform;
-// The model, view and projection transformations
+GLint vModel_uniform, vView_uniform, vProjection_uniform, vColor_uniform, vCam_uniform;
 glm::mat4 modelT, viewT, projectionT; 
-// Mouse movement variables
+
 double oldX, oldY, currentX, currentY;
 bool isDragging = false;
+bool is_ok = false;
+// Variables for the rgba values of the transfer function
+float r, g, b;
+float alpha = 0.0;
+
 
 void createBoundingbox(unsigned int &, unsigned int &);
 void setupModelTransformation(unsigned int &);
 void setupViewTransformation(unsigned int &);
 void setupProjectionTransformation(unsigned int &);
 glm::vec3 getTrackBallVector(double x, double y);
-float step_size = 0.001;
+void setUniforms(unsigned int &);
 glm::vec4 camPos = glm::vec4(0, 0, 280.0, 1.0);
-// Initial camera Position
-// Move camera in camera space
-
-GLuint VAO, transferfun, texture3d;
-float x_size = 256, y_size = 256, z_size = 256;
-// Volume size = 256*256*256
-const int volume_size = x_size * y_size * z_size;
+float a = 256, b = 256, c = 256;
+const int volume_size = a * b * c;
+// Volume size = 256 * 256 * 256
+float step_size = 1;
+// Load volume data into this array
 GLubyte *volume_data = new GLubyte[volume_size];
-GLfloat *transfer_function = new GLfloat[256 * 4];
+// Array for the transfer function
+GLfloat *transfer_function = new GLfloat[1024];// 256 * 4
 // create a transfer function with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue
+GLuint VAO, transferfun, texture3d;
+
 int main(int, char **)
 {
     // Setup window
     GLFWwindow *window = setupWindow(screen_width, screen_height);
     ImGuiIO &io = ImGui::GetIO(); // Create IO object
+
     ImVec4 clearColor = ImVec4(1.0f, 1.0f, 1.0f, 1.00f);
     // Setup ImGui binding
-    const char *file = "./data/foot.raw";
-    FILE *f = fopen(file, "rb");
-    if (NULL == f)
-    {   fprintf(stderr, "Data file not found\n");
-        exit(0);
+    // Read volume data from file and create a 3D texture
+    const char *location = "./data/foot.raw";
+    {
+        FILE *file = fopen(location, "rb");
+        if (NULL == file)
+        {
+            fprintf(stderr, "Error opening file\n");
+            exit(0);
+        }
+        fread(volume_data, sizeof(GLubyte), volume_size, file);
+        fclose(file);
     }
-    fread(volume_data, sizeof(GLubyte), volume_size, f);
-    fclose(f);
-    //Transfer function
+    // Transfer function
     // To do
+
     for (int i = 0; i < 256; i++)
     {
+
         transfer_function[i * 4] = float(i) / 255.0;
         transfer_function[i * 4 + 1] = float(i) / 255.0;
         transfer_function[i * 4 + 2] = float(i) / 255.0;
         transfer_function[i * 4 + 3] = 1;
     }
-    // Generate a texture with the volume_data data and shading values and pass it to the shader program using uniform variables
-    unsigned int shader_program = createProgram("./shaders/vshader.vs", "./shaders/fshader.fs");
 
-    glUseProgram(shader_program);
+    unsigned int shaderProgram = createProgram("./shaders/vshader.vs", "./shaders/fshader.fs");
+    glUseProgram(shaderProgram);
+
     glGenTextures(1, &texture3d);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_3D, texture3d);
@@ -81,8 +88,8 @@ int main(int, char **)
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, x_size, y_size, z_size, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
-    // Making a texture with the volume_data
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
+    // create a texture with the volume_data
     delete[] volume_data;
 
     glGenTextures(1, &transferfun);
@@ -93,21 +100,21 @@ int main(int, char **)
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
-     // 1D transfer function
+    // Map transfer function to texture
 
     glGenVertexArrays(1, &VAO);
 
-    glUseProgram(shader_program);
-    setupModelTransformation(shader_program); // These funs will set and pass the Model, View, Transformation matrix to shaders
-    setupViewTransformation(shader_program);
-    setupProjectionTransformation(shader_program);
+    glUseProgram(shaderProgram);
+    setupModelTransformation(shaderProgram);
+    setupViewTransformation(shaderProgram);
+    setupProjectionTransformation(shaderProgram);
 
-    createBoundingbox(shader_program, VAO); // Creating vounding box;
+    createBoundingbox(shaderProgram, VAO); //  Bounding box;
 
     oldX = oldY = currentX = currentY = 0.0;
     int prevLeftButtonState = GLFW_RELEASE;
     glEnable(GL_DEPTH_TEST);
-    // Credit goes to Assignment 3 , Code provided by Prof. Ojaswa Sharma
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -139,19 +146,19 @@ int main(int, char **)
         }
         else if (leftButtonState == GLFW_RELEASE && prevLeftButtonState == GLFW_PRESS && !is_ok)
         {
-            isDragging = 0;
+            isDragging = false;
         }
         if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_UpArrow)))
-        {
+        { // Moving camera with key press up/(shift-up)
             camPos.z = camPos.z + 1;
-            setupViewTransformation(shader_program);
+            setupViewTransformation(shaderProgram);
         }
         if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_DownArrow)))
         {
             camPos.z = camPos.z - 1;
-            setupViewTransformation(shader_program);
+            setupViewTransformation(shaderProgram);
         }
-        // Rotate based on mouse drag movement
+        // Rotate based on mouse drag movementsetupViewTransformation(shaderProgram);
         prevLeftButtonState = leftButtonState;
         if (isDragging && (currentX != oldX || currentY != oldY))
         {
@@ -163,7 +170,7 @@ int main(int, char **)
             glm::vec3 axis_in_object_coord = camera2object * axis_in_camera_coord;
             glm::mat4 dummy = glm::rotate(modelT, -angle, axis_in_object_coord);
             camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
-            setupViewTransformation(shader_program);
+            setupViewTransformation(shaderProgram);
             oldX = currentX;
             oldY = currentY;
         }
@@ -172,17 +179,15 @@ int main(int, char **)
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-
         {
-            ImGui::Begin("Transfer Function");
+            ImGui::Begin("Information");
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
             r = transfer_function[0];
-            ImGui::SliderFloat("Red Color Value:", &r, 0, 1);
+            ImGui::SliderFloat("Red Colour Value", &r, 0, 1);
             g = transfer_function[1];
-            ImGui::SliderFloat("Green Color Value: ", &g, 0, 1);
+            ImGui::SliderFloat("Green Colour Value", &g, 0, 1);
             b = transfer_function[2];
-            ImGui::SliderFloat("Blue Color Value: ", &b, 0, 1);
+            ImGui::SliderFloat("Blue Colour Value", &b, 0, 1);
             alpha = transfer_function[3];
             ImGui::SliderFloat("Alpha Value", &alpha, 0, 1);
 
@@ -197,52 +202,71 @@ int main(int, char **)
             glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
             ImGui::End();
         }
-        glUseProgram(shader_program);
-        // glUseProgram(shader_program);
-        // Bind shader variables
-        vCam_uniform = glGetUniformLocation(shader_program, "camPosition");
-        glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
-        if(vCam_uniform == -1)
+        glUseProgram(shaderProgram);
         {
-            fprintf(stderr, "Could not bind location: vCam_uniform\n");
-        }
-        GLuint vstep_uniform = glGetUniformLocation(shader_program, "stepSize");
-        if(vstep_uniform == -1)
-        {
-            fprintf(stderr, "Could not bind location: vstep_uniform\n");
-        }
-        glUniform1f(vstep_uniform, step_size);
-        GLuint vextent_min_uniform = glGetUniformLocation(shader_program, "extentmin");
-        if(vextent_min_uniform == -1)
-        {
-            fprintf(stderr, "Could not bind location: vextent_min_uniform\n");
-        }
-        glUniform3f(vextent_min_uniform, 0, 0, -z_size);
-        GLuint vextent_max_uniform = glGetUniformLocation(shader_program, "extentmax");
-        if(vextent_max_uniform == -1)
-        {
-            fprintf(stderr, "Could not bind location: vextent_max_uniform\n");
-        }
-        glUniform3f(vextent_max_uniform, x_size, y_size, 0);
-        GLuint texture_1 = glGetUniformLocation(shader_program, "texture3d");
-        unsigned int VAO;
-        if(texture_1 == -1)
-        {
-            fprintf(stderr, "Could not bind location: texture_1\n");
-        }
-        glGenVertexArrays(1, &VAO);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_3D, texture3d);
-        glUniform1i(texture_1, 0);
+            glUseProgram(shader_program);
 
-        GLuint texture_2 = glGetUniformLocation(shader_program, "transferfun");
-        if(texture_2 == -1)
-        {
-            fprintf(stderr, "Could not bind location: texture_2\n");
+            vCam_uniform = glGetUniformLocation(shader_program, "camPosition");
+            if (vCam_uniform == -1)
+            {
+                fprintf(stderr, "Could not bind location: camPosition\n");
+                exit(0);
+            }
+            glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
+
+            GLuint vstep_size = glGetUniformLocation(shader_program, "stepSize");
+            if (vstep_size == -1)
+            {
+                fprintf(stderr, "Could not bind location: vstep_size\n");
+                exit(0);
+            }
+            glUniform1f(vstep_size, step_size);
+
+            GLuint vExtentMin = glGetUniformLocation(shader_program, "extentmin");
+            if (vExtentMin == -1)
+            {
+                fprintf(stderr, "Could not bind location: vExtentMin\n");
+                exit(0);
+            }
+            glUniform3f(vExtentMin, 0, 0, -c);
+
+            GLuint vExtentMax = glGetUniformLocation(shader_program, "extentmax");
+            if (vExtentMax == -1)
+            {
+                fprintf(stderr, "Could not bind location: vExtentMax\n");
+                exit(0);
+            }
+            glUniform3f(vExtentMax, a, b, 0);
+
+            GLuint tex1 = glGetUniformLocation(shader_program, "texture3d");
+            if (tex1 == -1)
+            {
+                fprintf(stderr, "Could not bind location: texture3d\n");
+                exit(0);
+            }
+            else
+            {
+                unsigned int VAO;
+                glGenVertexArrays(1, &VAO);
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_3D, texture3d);
+                glUniform1i(tex1, 0);
+            }
+
+            GLuint tex2 = glGetUniformLocation(shader_program, "transferfun");
+            if (tex2 == -1)
+            {
+                fprintf(stderr, "Could not bind location: transferfun\n");
+                exit(0);
+            }
+            else
+            {
+                glActiveTexture(GL_TEXTURE1);
+                glBindTexture(GL_TEXTURE_1D, transferfun);
+                glUniform1i(tex2, 1);
+            }
         }
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_1D, transferfun);
-        glUniform1i(texture_2, 1);
+
         // Rendering
         ImGui::Render();
         int display_w, display_h;
@@ -265,8 +289,6 @@ int main(int, char **)
     return 0;
 }
 
-// Below functions are referred from Assignment and Labs
-// Bounding box required for the volume_data rendering to intersect ray with the volume_data data
 void createBoundingbox(unsigned int &program, unsigned int &cube_VAO)
 {
     glUseProgram(program);
@@ -276,11 +298,12 @@ void createBoundingbox(unsigned int &program, unsigned int &cube_VAO)
     if (vVertex_attrib == -1)
     {
         fprintf(stderr, "Could not bind location: vVertex\n");
+        exit(0);
     }
     // Cube data
     GLfloat cube_vertices[] = {
-        x_size - 1, y_size - 1, -z_size + 1, 0, y_size - 1, -z_size + 1, 0, 0, -z_size + 1, x_size - 1, 0, -z_size + 1,
-        x_size - 1, y_size - 1, 0, 0, y_size - 1, 0, 0, 0, 0, x_size - 1, 0, 0};
+        a - 1, b - 1, -c + 1, 0, b - 1, -c + 1, 0, 0, -c + 1, a - 1, 0, -c + 1,
+        a - 1, b - 1, 0, 0, b - 1, 0, 0, 0, 0, a - 1, 0, 0};
     GLushort cube_indices[] = {
         0, 1, 2, 0, 2, 3, // Front
         4, 7, 5, 5, 7, 6, // Back
@@ -319,7 +342,7 @@ void createBoundingbox(unsigned int &program, unsigned int &cube_VAO)
 void setupModelTransformation(unsigned int &program)
 {
     // Modelling transformations (Model -> World coordinates)
-    modelT = glm::translate(glm::mat4(1.0f), glm::vec3(-x_size / 2, -y_size / 2, z_size / 2)); // Model coordinates are the world coordinates
+    modelT = glm::translate(glm::mat4(1.0f), glm::vec3(-a / 2, -b / 2, c / 2)); // Model coordinates are the world coordinates
 
     // Pass on the modelling matrix to the vertex shader
     glUseProgram(program);
@@ -327,6 +350,7 @@ void setupModelTransformation(unsigned int &program)
     if (vModel_uniform == -1)
     {
         fprintf(stderr, "Could not bind location: vModel\n");
+        exit(0);
     }
     glUniformMatrix4fv(vModel_uniform, 1, GL_FALSE, glm::value_ptr(modelT));
 }
@@ -334,7 +358,7 @@ void setupModelTransformation(unsigned int &program)
 void setupViewTransformation(unsigned int &program)
 {
     // Viewing transformations (World -> Camera coordinates
-    viewT = glm::lookAt(glm::vec3(camPos), glm::vec3(0.0, 0.0, 0.0),  glm::vec3(0.0, 1.0, 0.0));
+    viewT = glm::lookAt(glm::vec3(camPos), glm::vec3(0.0, 0.0, 0.0), glm::vec3(0.0, 1.0, 0.0));
 
     // Pass-on the viewing matrix to the vertex shader
     glUseProgram(program);
@@ -342,6 +366,7 @@ void setupViewTransformation(unsigned int &program)
     if (vView_uniform == -1)
     {
         fprintf(stderr, "Could not bind location: vView\n");
+        exit(0);
     }
     glUniformMatrix4fv(vView_uniform, 1, GL_FALSE, glm::value_ptr(viewT));
 }
@@ -357,6 +382,7 @@ void setupProjectionTransformation(unsigned int &program)
     if (vProjection_uniform == -1)
     {
         fprintf(stderr, "Could not bind location: vProjection\n");
+        exit(0);
     }
     glUniformMatrix4fv(vProjection_uniform, 1, GL_FALSE, glm::value_ptr(projectionT));
 }
