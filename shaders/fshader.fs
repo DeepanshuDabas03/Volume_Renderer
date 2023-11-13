@@ -4,152 +4,133 @@ in vec3 fColor;
 in vec3 cameraPos;
 in vec3 ExtentMax;
 in vec3 ExtentMin;
-in mat4 inverse_viewproj;
+
+out vec4 outColor;
 
 uniform float stepSize;
-
 uniform sampler1D transferfun;
+// transferfun is the transfer function texture
 uniform sampler3D texture3d;
+// texture3d is the volume texture
 
 float screen_width = 640;
 float screen_height = 640;
 
 vec4 value;
-float scalar;
-vec4 dst = vec4(0, 0, 0, 0);
+float s;
+vec4 origin = vec4(0, 0, 0, 0);
 vec3 direction;
-float delta_t = 0.0001;
-vec3 curren_pos, pos_max, pos_min;
-float tentry, texit;
-vec3 model_center = vec3(0, 0, 0);
-float distance = length(model_center - cameraPos);
-float radius = length(ExtentMax - ExtentMin)/2.0;
-float tmin = distance - radius;
-float tmax = distance + radius;
+vec3 dpos;
 
-out vec4 outColor;
+float aspect_ratio = screen_width / screen_height;
+float thetha = 90;
+float focal_H = 1.0;
+float dirn = focal_H / (2.0 * tan(thetha * 3.14 / (180.0 * 2.0)));
+vec3 w = normalize(vec3(cameraPos - vec3(0, 0, 0)));
+vec3 u = normalize(cross(vec3(0, 1, 0), w));
+// Get vector perpendicular to the camera position and the world up vector
+vec3 v = normalize(cross(w, u));
+// Get vector perpendicular to the camera position and the vector u to get orthonormal basis
 
-// bool rayintersection(vec3 position, vec3 dir)
-// {
-//         // vec3 tMin = (ExtentMin - position) / dir;
-//         // vec3 tMax = (ExtentMax - position) / dir;
-//         // vec3 t1 = min(tMin, tMax);
-//         // vec3 t2 = max(tMin, tMax);
-//         // float tentry = max(max(t1.x, t1.y), t1.z);
-//         // float texit = min(min(t2.x, t2.y), t2.z);
+float z_in;
+float texture_l;
 
-//         float tx1 = (ExtentMin.x - dir.x)/dir.x;
-//         float tx2 = (ExtentMax.x - dir.x)/dir.x;
-//         tentry = min(tx1, tx2);
-//         texit = max(tx1, tx2);
-//         float ty1 = (ExtentMin.y - dir.y)/dir.y;
-//         float ty2 = (ExtentMax.y - dir.y)/dir.y;
-//         tentry = max(tentry, min(ty1, ty2));
-//         texit = min(texit, max(ty1, ty2));
-//         if(tentry > texit)
-//         {
-//                 return false;
-//         }
-//         return true;
-// }
+bool does_hit(vec3 position, vec3 direction) {
+    float y_min, y_max, z_min, z_max;
+    vec3 n = 1 / direction;
+    // if the sign is negative, the ray is going in the negative direction
+    if(n.x < 0) {
+        z_in = (ExtentMax.x - position.x) / direction.x;
+        texture_l = (ExtentMin.x - position.x) / direction.x;
+    } else {
+        z_in = (ExtentMin.x - position.x) / direction.x;
+        texture_l = (ExtentMax.x - position.x) / direction.x;
+    }
 
-bool rayintersection(vec3 position, vec3 dir)
-{
-        float temp;
-        tentry = (ExtentMin.x - position.x) / dir.x; 
-        texit = (ExtentMax.x - position.x) / dir.x; 
-        
-        if (tentry > texit){
-                temp = tentry;
-                tentry = texit;
-                texit = temp;
+    if(n.y < 0) {
+        y_min = (ExtentMax.y - position.y) / direction.y;
+        y_max = (ExtentMin.y - position.y) / direction.y;
+    } else {
+        y_min = (ExtentMin.y - position.y) / direction.y;
+        y_max = (ExtentMax.y - position.y) / direction.y;
+    }
+     // Check intersection with Z-axis
+    if((z_in > y_max)) {
+        return false;
+    }
+    // if the ray y value is out of the volume, return false
+    if(y_min > texture_l) {
+        return false;
+    }
+    // replace the z value with the y value if the z value is smaller
+    if(y_min > z_in) {
+        z_in = y_min;
+    }
+    // replace the texture length with the y value if the y value is larger
+    if(y_max < texture_l) {
+        texture_l = y_max;
+    }
+
+    if(n.z < 0) {
+        z_min = (ExtentMax.z - position.z) / direction.z;
+        z_max = (ExtentMin.z - position.z) / direction.z;
+    } else {
+        z_min = (ExtentMin.z - position.z) / direction.z;
+        z_max = (ExtentMax.z - position.z) / direction.z;
+    }
+
+    if(z_min > z_in) {
+        z_in = z_min;
+    }
+    if(z_max < texture_l) {
+        texture_l = z_max;
+    }
+    if(z_in > 0) {
+        if(texture_l > 0) {
+            if(z_in < texture_l) {
+                // Ray hits the volume
+                return true;
+            }
         }
-        
-        float tymin = (ExtentMin.y - position.y) / dir.y; 
-        float tymax = (ExtentMax.y - position.y) / dir.y; 
-        
-        if (tymin > tymax){
-                temp = tymin;
-                tymin = tymax;
-                tymax = temp;
-        } 
-        
-        if ((tentry > tymax) || (tymin > texit)) 
-                return false; 
-        
-        if (tymin > tentry) 
-                tentry = tymin; 
-        
-        if (tymax < texit) 
-                texit = tymax; 
-        
-        float tzmin = (ExtentMin.z - position.z) / dir.z; 
-        float tzmax = (ExtentMax.z - position.z) / dir.z; 
-        
-        if (tzmin > tzmax){
-                temp = tzmin;
-                tzmin = tzmax;
-                tzmax = temp;
-        }
-        
-        if ((tentry > tzmax) || (tzmin > texit)) 
-                return false; 
-        
-        if (tzmin > tentry) 
-                tentry = tzmin; 
-        
-        if (tzmax < texit) 
-                texit = tzmax; 
-        return true; 
+    }
+    // if ray does not hit the volume, return false
+    return false;
 }
 
-void main()
-{
-        vec4 ndc = vec4((gl_FragCoord.x/screen_width - 0.5)*2.0, (gl_FragCoord.y/screen_height - 0.5)*2.0, 
-                                (gl_FragCoord.z - 0.5)*2.0, 1.0);
-        ndc.z = (2*gl_FragCoord.z - (gl_DepthRange.near + gl_DepthRange.far))/gl_DepthRange.diff;
-        // vec4 glposition = ndc/gl_FragCoord.w;
-        // vec3 position = vec3(inverse_viewproj*glposition);
-        vec4 glposition = inverse_viewproj*ndc;
-        vec3 position = (glposition/glposition.w).xyz;
-
-        direction = normalize(position - cameraPos);
-
-        if(!rayintersection(position,direction)){
-                outColor = vec4(1.0,0.0,0.0,1.0);
-                return;
+void main() {
+    float xw = aspect_ratio * (gl_FragCoord.x - screen_width / 2.0 + 0.5) / screen_width;
+    float yw = (gl_FragCoord.y - screen_height / 2.0 + 0.5) / screen_height;
+    // 1/(2tan(pi*thetha/360)))
+    float dirn = focal_H / (2.0 * tan(thetha * 3.14 / (180.0 * 2.0)));
+    vec3 position = cameraPos;
+    direction = normalize(u * xw + v * yw - dirn * w);
+    // Get the direction of the ray using the camera position and the orthonormal basis
+    // If the ray does not hit the volume, return black
+    if(!does_hit(position, direction)) {
+        outColor = vec4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+    // If the ray hits the volume, return the color
+    origin = vec4(0, 0, 0, 0);
+    int i = 0;
+    float t = z_in;
+    for(i = 0;; i += 1) {
+        dpos = position + direction * t;
+        // Break if the ray exits the volume or the alpha value is high enough
+        if(t > texture_l) {
+            break;
         }
-
-        dst = vec4(0,0,0,0);
-        curren_pos = position + tentry*direction;
-        float sum = 0;
-        int i = 0;
-        float t = tentry;
-        float tnorm = ((tentry - tmin)/(tmax- tmin));
-        for(i=0;;i+=1){
-                value = texture(texture3d, (curren_pos+((ExtentMax - ExtentMin)/2))/(ExtentMax-ExtentMin));
-                sum += value.r;
-                scalar = value.r;
-                vec4 src = texture(transferfun,scalar);
-
-                dst = (1.0-dst.a)*src + dst;
-
-                t += delta_t;
-                curren_pos = position + direction*t;
-                // if(curren_pos.x<ExtentMin.x || curren_pos.y<ExtentMin.y || curren_pos.z<ExtentMin.z
-                //         || curren_pos.x>ExtentMax.x || curren_pos.y>ExtentMax.y || curren_pos.z>ExtentMax.z)
-                //         {
-                //                 break;
-                //         }
-                if(t>texit){
-                        break;
-                }
-                if(dst.a > 0.95){
-                        break;
-                }
+        if(origin.a > 0.96) {
+            break;
         }
-        outColor = vec4(tnorm, tnorm, tnorm, 1.0) + dst*0;
-        sum /= i;
-        // outColor = dst;
-        // outColor = vec4(sum, sum, sum, 1.0)+dst*0;
+        // Get the color from the transfer function and the value from the volume texture
+        value = texture(texture3d, (dpos + ((ExtentMax - ExtentMin) / 2)) / (ExtentMax - ExtentMin));
+        s = value.r;
+        vec4 src = texture(transferfun, s);
+        // calculate the color and alpha value using the transfer function and the volume texture
+        origin.rgb = origin.rgb + (1.0 - origin.a) * src.rgb * s;
+        origin.a = origin.a + (1.0 - origin.a) * s;
+        t += stepSize;
+    }
+    outColor = origin;
 }

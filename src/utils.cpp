@@ -126,6 +126,7 @@ int openGLInit(){
     // Enable smooth point rendering
     glEnable(GL_LINE_SMOOTH);
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    return 0;
 }
 
 unsigned int createProgram(const char *vshader_filename, const char* fshader_filename)
