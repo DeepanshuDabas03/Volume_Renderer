@@ -8,16 +8,16 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-// Include standard headers from C++ 
+// Include standard headers from C++
 #include <iostream>
 #include <stdio.h>
 #include <cmath>
 #include <unistd.h>
- 
+
 // Window size
 int screen_width = 800, screen_height = 800;
 GLint vModel_uniform, vView_uniform, vProjection_uniform, vColor_uniform, vCam_uniform;
-glm::mat4 modelT, viewT, projectionT; 
+glm::mat4 modelT, viewT, projectionT;
 
 double oldX, oldY, currentX, currentY;
 bool isDragging = false;
@@ -25,7 +25,6 @@ bool is_ok = false;
 // Variables for the rgba values of the transfer function
 float r, g, bl;
 float alpha = 0.0;
-
 
 void createBoundingbox(unsigned int &, unsigned int &);
 void setupModelTransformation(unsigned int &);
@@ -41,7 +40,7 @@ float step_size = 1;
 // Load volume data into this array
 GLubyte *volume_data = new GLubyte[volume_size];
 // Array for the transfer function
-GLfloat *transfer_function = new GLfloat[1024];// 256 * 4
+GLfloat *transfer_function = new GLfloat[1024]; // 256 * 4
 // create a transfer function with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue
 GLuint VAO, transferfun, texture3d;
 
@@ -180,17 +179,16 @@ int main(int, char **)
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            ImGui::Begin("Information");
+            ImGui::Begin("Transfer Function");
             ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             r = transfer_function[0];
-            ImGui::SliderFloat("Red Colour Value", &r, 0, 1);
             g = transfer_function[1];
-            ImGui::SliderFloat("Green Colour Value", &g, 0, 1);
             bl = transfer_function[2];
-            ImGui::SliderFloat("Blue Colour Value", &bl, 0, 1);
             alpha = transfer_function[3];
+            ImGui::SliderFloat("Red Colour Value", &r, 0, 1);
+            ImGui::SliderFloat("Green Colour Value", &g, 0, 1);
+            ImGui::SliderFloat("Blue Colour Value", &bl, 0, 1);
             ImGui::SliderFloat("Alpha Value", &alpha, 0, 1);
-
             transfer_function[0] = r;
             transfer_function[1] = g;
             transfer_function[2] = bl;
@@ -207,64 +205,33 @@ int main(int, char **)
             glUseProgram(shaderProgram);
 
             vCam_uniform = glGetUniformLocation(shaderProgram, "camPosition");
-            if (vCam_uniform == -1)
-            {
-                fprintf(stderr, "Could not bind location: camPosition\n");
-                exit(0);
-            }
+
             glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
 
             GLuint vstep_size = glGetUniformLocation(shaderProgram, "stepSize");
-            if (vstep_size == -1)
-            {
-                fprintf(stderr, "Could not bind location: vstep_size\n");
-                exit(0);
-            }
+
             glUniform1f(vstep_size, step_size);
 
             GLuint vExtentMin = glGetUniformLocation(shaderProgram, "extentmin");
-            if (vExtentMin == -1)
-            {
-                fprintf(stderr, "Could not bind location: vExtentMin\n");
-                exit(0);
-            }
+
             glUniform3f(vExtentMin, 0, 0, -c);
 
             GLuint vExtentMax = glGetUniformLocation(shaderProgram, "extentmax");
-            if (vExtentMax == -1)
-            {
-                fprintf(stderr, "Could not bind location: vExtentMax\n");
-                exit(0);
-            }
+
             glUniform3f(vExtentMax, a, b, 0);
 
             GLuint tex1 = glGetUniformLocation(shaderProgram, "texture3d");
-            if (tex1 == -1)
-            {
-                fprintf(stderr, "Could not bind location: texture3d\n");
-                exit(0);
-            }
-            else
-            {
-                unsigned int VAO;
-                glGenVertexArrays(1, &VAO);
-                glActiveTexture(GL_TEXTURE0);
-                glBindTexture(GL_TEXTURE_3D, texture3d);
-                glUniform1i(tex1, 0);
-            }
+
+            unsigned int VAO;
+            glGenVertexArrays(1, &VAO);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_3D, texture3d);
+            glUniform1i(tex1, 0);
 
             GLuint tex2 = glGetUniformLocation(shaderProgram, "transferfun");
-            if (tex2 == -1)
-            {
-                fprintf(stderr, "Could not bind location: transferfun\n");
-                exit(0);
-            }
-            else
-            {
-                glActiveTexture(GL_TEXTURE1);
-                glBindTexture(GL_TEXTURE_1D, transferfun);
-                glUniform1i(tex2, 1);
-            }
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_1D, transferfun);
+            glUniform1i(tex2, 1);
         }
 
         // Rendering
