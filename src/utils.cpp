@@ -199,7 +199,7 @@ GLFWwindow* setupWindow(int width, int height)
 
     // Create window with graphics context
     glfwWindowHint(GLFW_SAMPLES, 4);
-    GLFWwindow* window = glfwCreateWindow(width, height, "CG Project", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(width, height, "Volume Renderer With Transform Function", NULL, NULL);
     if (window == NULL)
         exit(0);
     glfwMakeContextCurrent(window);
