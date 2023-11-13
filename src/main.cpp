@@ -198,7 +198,7 @@ int main(int, char **)
             ImGui::End();
         }
         glUseProgram(shader_program);
-        glUseProgram(shader_program);
+        // glUseProgram(shader_program);
         // Bind shader variables
         vCam_uniform = glGetUniformLocation(shader_program, "camPosition");
         glUniform3fv(vCam_uniform, 1, glm::value_ptr(glm::vec3(camPos)));
