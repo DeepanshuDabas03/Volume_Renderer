@@ -202,7 +202,6 @@ int main(int, char **)
         }
         glUseProgram(shaderProgram);
         {
-            glUseProgram(shaderProgram);
 
             vCam_uniform = glGetUniformLocation(shaderProgram, "camPosition");
 
