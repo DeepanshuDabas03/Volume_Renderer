@@ -55,7 +55,7 @@ int main(int, char **)
     const char *file = "./data/foot.raw";
     FILE *f = fopen(file, "rb");
     if (NULL == f)
-    {   fprintf(stderr, "Data file not found\n")
+    {   fprintf(stderr, "Data file not found\n");
         exit(0);
     }
     fread(volume_data, sizeof(GLubyte), volume_size, f);
