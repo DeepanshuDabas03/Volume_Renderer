@@ -1,0 +1,3 @@
+/home/deepanshu/Downloads/Volume_Renderer/build/CMakeFiles/Volume_Renderer.dir
+/home/deepanshu/Downloads/Volume_Renderer/build/CMakeFiles/edit_cache.dir
+/home/deepanshu/Downloads/Volume_Renderer/build/CMakeFiles/rebuild_cache.dir

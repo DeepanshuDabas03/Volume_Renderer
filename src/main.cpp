@@ -1,81 +1,80 @@
 #include "utils.h"
-// Include standard headers from OpenGL
+/*--------------------------- Include standard headers from OpenGL ---------------------------*/
 #define GLM_FORCE_RADIANS
 #define GLM_ENABLE_EXPERIMENTAL
-// Include GLM core features
+/*--------------------------- Include GLM core features ---------------------------*/
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 
-// Include standard headers from C++
+/*--------------------------- Include standard headers from C++ ---------------------------*/
+#include <filesystem>
 #include <iostream>
 #include <stdio.h>
 #include <cmath>
 #include <unistd.h>
+#include <vector>
+#include <string>
+namespace fs = std::filesystem;
 
-// Window size
-int screen_width = 800, screen_height = 800;
+/*--------------------------- Window size ---------------------------*/
+int screen_width = 1900, screen_height = 1080;
 GLint vModel_uniform, vView_uniform, vProjection_uniform, vColor_uniform, vCam_uniform;
 glm::mat4 modelT, viewT, projectionT;
 
 double oldX, oldY, currentX, currentY;
 bool isDragging = false;
 bool is_ok = false;
-// Variables for the rgba values of the transfer function
-float r, g, bl;
-float alpha = 0.0;
-
+/*--------------------------- Scaler index of the Transfer function array ---------------------------*/
+int trans_coord;
+/*---------------------------Function Declarations---------------------------*/
+void UpdateTransferFunction(int);
 void createBoundingbox(unsigned int &, unsigned int &);
 void setupModelTransformation(unsigned int &);
 void setupViewTransformation(unsigned int &);
 void setupProjectionTransformation(unsigned int &);
 glm::vec3 getTrackBallVector(double x, double y);
 void setUniforms(unsigned int &);
+/* --------------------------- Camera Position---------------------------*/
 glm::vec4 camPos = glm::vec4(0, 0, 280.0, 1.0);
 float a = 256, b = 256, c = 256;
 const int volume_size = a * b * c;
-// Volume size = 256 * 256 * 256
-float step_size = 1;
-// Load volume data into this array
+/* ---------------------------Volume size = 256 * 256 * 256---------------------------*/
+float step_size = 2.0f;
+/*--------------------------- Array to store loaded volume data---------------------------*/
 GLubyte *volume_data = new GLubyte[volume_size];
-// Array for the transfer function
-GLfloat *transfer_function = new GLfloat[1024]; // 256 * 4
-// create a transfer function with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue
+/*--------------------------- Pointer to the location of volume---------------------------*/
+const char *location="Null";
+/* --------------------------- Create a transfer function Array with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue---------------------------*/
+GLfloat *transfer_function = new GLfloat[1024];
 GLuint VAO, transferfun, texture3d;
 
 int main(int, char **)
 {
-    // Setup window
+    /*------------------ Setup window------------------*/
     GLFWwindow *window = setupWindow(screen_width, screen_height);
     ImGuiIO &io = ImGui::GetIO(); // Create IO object
-
+    /*------------------ Background Color(Default Color)------------------*/
     ImVec4 clearColor = ImVec4(1.0f, 1.0f, 1.0f, 1.00f);
-    // Setup ImGui binding
-    // Read volume data from file and create a 3D texture
-    const char *location = "./data/foot.raw";
+    /*------------------ RGBA values for the Transfer function ------------------*/
+    float RGBA[4] = {0.0f, 0.0f, 0.0f, 1.00f};
+    /*
+    ------------------ Open directory and iterator over each file and add them to files array ------------------
+    ------------------ These files will be used to load volume data from file ------------------
+    ------------------ User then can select the desired volume data from the GUI ------------------
+    */
+    std::string path = "./data";
+    std::vector<std::string> files;
+    for (const auto &entry : fs::directory_iterator(path))
     {
-        FILE *file = fopen(location, "rb");
-        if (NULL == file)
-        {
-            fprintf(stderr, "Error opening file\n");
-            exit(0);
-        }
-        fread(volume_data, sizeof(GLubyte), volume_size, file);
-        fclose(file);
+        std::filesystem::path outfilename = entry.path();
+        std::string outfilename_str = outfilename.string();
+        const char *path = outfilename_str.c_str();
+        files.push_back(path);
     }
-    // Transfer function
-    // To do
-
-    for (int i = 0; i < 256; i++)
-    {
-
-        transfer_function[i * 4] = float(i) / 255.0;
-        transfer_function[i * 4 + 1] = float(i) / 255.0;
-        transfer_function[i * 4 + 2] = float(i) / 255.0;
-        transfer_function[i * 4 + 3] = 1;
-    }
-
+    memset(volume_data, 0, volume_size);
+    /*------------------ Create a shader program------------------*/
     unsigned int shaderProgram = createProgram("./shaders/vshader.vs", "./shaders/fshader.fs");
     glUseProgram(shaderProgram);
 
@@ -88,9 +87,7 @@ int main(int, char **)
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
-    // create a texture with the volume_data
-    delete[] volume_data;
-
+    /*------------------  Create Textures ------------------*/
     glGenTextures(1, &transferfun);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_1D, transferfun);
@@ -98,9 +95,6 @@ int main(int, char **)
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
-    // Map transfer function to texture
-
     glGenVertexArrays(1, &VAO);
 
     glUseProgram(shaderProgram);
@@ -117,90 +111,147 @@ int main(int, char **)
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        if (!ImGui::IsAnyItemActive())
         {
-            if (is_ok)
+            /*--------------------------- Handle Keyboard events---------------------------*/
+            if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
             {
-                is_ok = false;
+                if (is_ok)
+                {
+                    is_ok = false;
+                }
+                else
+                {
+                    is_ok = true;
+                }
             }
-            else
+            int leftButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+            double x, y;
+            glfwGetCursorPos(window, &x, &y);
+            if (leftButtonState == GLFW_PRESS && prevLeftButtonState == GLFW_RELEASE && !is_ok)
             {
-                is_ok = true;
+                isDragging = true;
+                currentX = oldX = x;
+                currentY = oldY = y;
+            }
+            else if (leftButtonState == GLFW_PRESS && prevLeftButtonState == GLFW_PRESS && !is_ok)
+            {
+                currentX = x;
+                currentY = y;
+            }
+            else if (leftButtonState == GLFW_RELEASE && prevLeftButtonState == GLFW_PRESS && !is_ok)
+            {
+                isDragging = false;
+            }
+            if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_UpArrow)))
+            { // Moving camera with key press up/(shift-up)
+                camPos.z = camPos.z + 1;
+                setupViewTransformation(shaderProgram);
+            }
+            if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_DownArrow)))
+            {
+                camPos.z = camPos.z - 1;
+                setupViewTransformation(shaderProgram);
+            }
+            /*------------------ Rotate based on mouse drag movements------------------*/
+            prevLeftButtonState = leftButtonState;
+            if (isDragging && (currentX != oldX || currentY != oldY))
+            {
+                glm::vec3 va = getTrackBallVector(oldX, oldY);
+                glm::vec3 vb = getTrackBallVector(currentX, currentY);
+                float angle = acos(std::min(1.0f, glm::dot(va, vb)));
+                glm::vec3 axis_in_camera_coord = glm::cross(va, vb);
+                glm::mat3 camera2object = glm::inverse(glm::mat3(viewT * modelT));
+                glm::vec3 axis_in_object_coord = camera2object * axis_in_camera_coord;
+                glm::mat4 dummy = glm::rotate(modelT, -angle, axis_in_object_coord);
+                camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
+                setupViewTransformation(shaderProgram);
+                oldX = currentX;
+                oldY = currentY;
             }
         }
-        int leftButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        double x, y;
-        glfwGetCursorPos(window, &x, &y);
-        if (leftButtonState == GLFW_PRESS && prevLeftButtonState == GLFW_RELEASE && !is_ok)
-        {
-            isDragging = true;
-            currentX = oldX = x;
-            currentY = oldY = y;
-        }
-        else if (leftButtonState == GLFW_PRESS && prevLeftButtonState == GLFW_PRESS && !is_ok)
-        {
-            currentX = x;
-            currentY = y;
-        }
-        else if (leftButtonState == GLFW_RELEASE && prevLeftButtonState == GLFW_PRESS && !is_ok)
-        {
-            isDragging = false;
-        }
-        if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_UpArrow)))
-        { // Moving camera with key press up/(shift-up)
-            camPos.z = camPos.z + 1;
-            setupViewTransformation(shaderProgram);
-        }
-        if (ImGui::IsKeyDown(ImGui::GetKeyIndex(ImGuiKey_DownArrow)))
-        {
-            camPos.z = camPos.z - 1;
-            setupViewTransformation(shaderProgram);
-        }
-        // Rotate based on mouse drag movementsetupViewTransformation(shaderProgram);
-        prevLeftButtonState = leftButtonState;
-        if (isDragging && (currentX != oldX || currentY != oldY))
-        {
-            glm::vec3 va = getTrackBallVector(oldX, oldY);
-            glm::vec3 vb = getTrackBallVector(currentX, currentY);
-            float angle = acos(std::min(1.0f, glm::dot(va, vb)));
-            glm::vec3 axis_in_camera_coord = glm::cross(va, vb);
-            glm::mat3 camera2object = glm::inverse(glm::mat3(viewT * modelT));
-            glm::vec3 axis_in_object_coord = camera2object * axis_in_camera_coord;
-            glm::mat4 dummy = glm::rotate(modelT, -angle, axis_in_object_coord);
-            camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
-            setupViewTransformation(shaderProgram);
-            oldX = currentX;
-            oldY = currentY;
-        }
-
-        // Start the Dear ImGui frame
+        /*------------------Start the Dear ImGui frame------------------*/
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         {
-            ImGui::Begin("Transfer Function");
-            ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            r = transfer_function[0];
-            g = transfer_function[1];
-            bl = transfer_function[2];
-            alpha = transfer_function[3];
-            ImGui::SliderFloat("Red Colour Value", &r, 0, 1);
-            ImGui::SliderFloat("Green Colour Value", &g, 0, 1);
-            ImGui::SliderFloat("Blue Colour Value", &bl, 0, 1);
-            ImGui::SliderFloat("Alpha Value", &alpha, 0, 1);
-            transfer_function[0] = r;
-            transfer_function[1] = g;
-            transfer_function[2] = bl;
-            transfer_function[3] = alpha;
+            /*------------------ Window Properties ------------------*/
+            ImGui::Begin("Window Properties", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+            ImGui::SetWindowFontScale(1.25);
+            std::string title="Current Volume: "+std::string(location);
+            ImGui::Text(title.c_str(),NULL);
+            /*------------------ Create Menu of Options Of Volume ------------------ */
+            if (ImGui::BeginMenu("Volume Data"))
+            {
+                for (int i = 0; i < files.size(); i++)
+                {
+                    if (ImGui::MenuItem(files[i].c_str()))
+                    {
+                        /*------------------ Reset volume data------------------*/
+                        memset(volume_data, 0, volume_size);
+
+                        location = files[i].c_str();
+                        /*--------------------------- Read volume data from file ---------------------------*/
+                        FILE *file = fopen(location, "rb");
+                        if (NULL == file)
+                        {
+                            fprintf(stderr, "Error opening file\n");
+                            exit(0);
+                        }
+                        fread(volume_data, sizeof(GLubyte), volume_size, file);
+                        fclose(file);
+
+                        /*------------------ Update volume data ------------------*/
+                        glUseProgram(shaderProgram);
+                        glGenTextures(1, &texture3d);
+                        glActiveTexture(GL_TEXTURE0);
+                        /*------------------ Tri-linear interpolation ------------------*/
+                        /*------------------ Reference https://learnopengl.com/Getting-started/Textures ------------------*/
+                        glBindTexture(GL_TEXTURE_3D, texture3d);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                        glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
+                        /*------------------ Map transfer function to texture ------------------*/
+
+                        UpdateTransferFunction(i);
+                        /*------------------ Update transfer function ------------------*/
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::Text("Camera Position");
+            ImGui::SliderFloat("X", &camPos.x, -1024, 1024);
+            ImGui::SliderFloat("Y", &camPos.y, -1024, 1024);
+            ImGui::SliderFloat("Z", &camPos.z, -1024, 1024);
+            ImGui::ColorPicker3("Change Background Color", (float *)&clearColor);
+            ImGui::PlotHistogram("Histogram", transfer_function, 256, 0, "Transfer Function", 0.0f, 1.0f, ImVec2(0, 80));
+            ImGui::End();
+
+            /*------------------Transfer function Window------------------*/
+            ImGui::StyleColorsLight();
+            ImGui::Begin("Transfer Function", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+            ImGui::SetWindowFontScale(1.25);
+            ImGui::SliderInt("Scalar Index", &trans_coord, 0, 255);
+            ImGui::ColorPicker4("Change Color", (float *)&RGBA, ImGuiColorEditFlags_DisplayRGB);
+            ImGui::SliderFloat("Step Size", &step_size, 1.0f, 20.0f);
+            ImGui::SetColorEditOptions(ImGuiColorEditFlags_Float);
+
+            // Update transfer function based on user input of coordinates and RGBA values
+            transfer_function[trans_coord * 4] = RGBA[0];
+            transfer_function[trans_coord * 4 + 1] = RGBA[1];
+            transfer_function[trans_coord * 4 + 2] = RGBA[2];
+            transfer_function[trans_coord * 4 + 3] = RGBA[3];
 
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_1D, transferfun);
-
+            /*------------------Map transfer function to texture------------------*/
             glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
             ImGui::End();
         }
-        // get shader variables and uniforms from the shader program
+        /*------------------Shader varialbles and uniforms and get location from shader program------------------*/
         glUseProgram(shaderProgram);
         {
 
@@ -234,7 +285,7 @@ int main(int, char **)
             glUniform1i(tex2, 1);
         }
 
-        // Rendering
+        /*------------------Rendering------------------*/
         ImGui::Render();
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -250,12 +301,70 @@ int main(int, char **)
 
         glfwSwapBuffers(window);
     }
+    delete[] volume_data;
 
     cleanup(window);
 
     return 0;
 }
-
+/*--------------------------- Based on volume setup default transfer function ---------------------------*/
+void UpdateTransferFunction(int vol)
+{
+    switch (vol)
+    {
+    case 0:
+        /*--------------------------- Aneurism Transfer Function ---------------------------*/
+        for (int i = 0; i < 256; i++)
+        {
+            transfer_function[i * 4] = i / 256;
+            transfer_function[i * 4 + 1] = i / 256;
+            transfer_function[i * 4 + 2] = i / 256;
+            transfer_function[i * 4 + 3] = i / 256;
+        }
+        break;
+    case 1:
+        /*--------------------------- Bonzai Transfer Function --------------------------- */
+        for (int i = 0; i < 256; i++)
+        {
+            transfer_function[i * 4] = i / 256;
+            transfer_function[i * 4 + 1] = i / 256;
+            transfer_function[i * 4 + 2] = i / 256;
+            transfer_function[i * 4 + 3] = i / 256;
+        }
+        break;
+    case 2:
+        /*--------------------------- Mri Ventricles Transfer Function --------------------------- */
+        for (int i = 0; i < 256; i++)
+        {
+            transfer_function[i * 4] = i / 256;
+            transfer_function[i * 4 + 1] = i / 256;
+            transfer_function[i * 4 + 2] = i / 256;
+            transfer_function[i * 4 + 3] = i / 256;
+        }
+        break;
+    case 3:
+        /*--------------------------- Foot Transfer Function ---------------------------*/
+        for (int i = 0; i < 256; i++)
+        {
+            transfer_function[i * 4] = i / 256;
+            transfer_function[i * 4 + 1] = i / 256;
+            transfer_function[i * 4 + 2] = i / 256;
+            transfer_function[i * 4 + 3] = i / 256;
+        }
+        break;
+    default:
+        /*--------------------------- Default GrayScale Transfer function ---------------------------*/
+        for (int i = 0; i < 256; i++)
+        {
+            transfer_function[i * 4] = i / 256;
+            transfer_function[i * 4 + 1] = i / 256;
+            transfer_function[i * 4 + 2] = i / 256;
+            transfer_function[i * 4 + 3] = i / 256;
+        }
+        break;
+    }
+}
+/*------------------ Create Bounding box by using code from assignments------------------*/
 void createBoundingbox(unsigned int &program, unsigned int &cube_VAO)
 {
     glUseProgram(program);
@@ -306,6 +415,7 @@ void createBoundingbox(unsigned int &program, unsigned int &cube_VAO)
     glBindVertexArray(0); // Unbind the VAO to disable changes outside this function.
 }
 
+/*------------------Setup Transformations of Model using code provided in assignments------------------*/
 void setupModelTransformation(unsigned int &program)
 {
     // Modelling transformations (Model -> World coordinates)
@@ -321,7 +431,7 @@ void setupModelTransformation(unsigned int &program)
     }
     glUniformMatrix4fv(vModel_uniform, 1, GL_FALSE, glm::value_ptr(modelT));
 }
-
+/*------------------ View Transform , code credits goes to Assignment------------------*/
 void setupViewTransformation(unsigned int &program)
 {
     // Viewing transformations (World -> Camera coordinates
@@ -338,6 +448,7 @@ void setupViewTransformation(unsigned int &program)
     glUniformMatrix4fv(vView_uniform, 1, GL_FALSE, glm::value_ptr(viewT));
 }
 
+/*------------------ Projection Transformation, code from assignments------------------*/
 void setupProjectionTransformation(unsigned int &program)
 {
     // Projection transformation
