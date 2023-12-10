@@ -1,99 +1,102 @@
 #version 330 core
-
-in vec3 fColor;
-in vec3 cameraPos;
-in vec3 ExtentMax;
-in vec3 ExtentMin;
-
+/* ---------------------- Input from the vertex shader ---------------------- */
+in vec3 eye;
+in vec3 tMax;
+in vec3 tMin;
+/*----------------------  Output Color of the fragment shader ---------------------- */
 out vec4 outColor;
-
+/* ----------------------  Get the uniform variables from the main function ---------------------- */
 uniform float stepSize;
 uniform sampler1D transferfun;
-// transferfun is the transfer function texture
-uniform sampler3D texture3d;
-// texture3d is the volume texture
+/* ----------------------  1D transfer function is used to get the color and alpha value from the volume texture ----------------------  */
+uniform sampler3D volumeTexture;
+/* ---------------------- 3D volume texture is used to get the value from the volume data texture ----------------------  */
 
+uniform sampler3D normalTexture;
+/* ---------------------- 3D normal texture is used to get the normal vector from the volume data texture ----------------------  */
 float screen_width = 1900;
 float screen_height = 1080;
+/* ----------------------  Screen width and height is used to get the aspect ratio ----------------------  */
 
-vec4 value;
-float s;
-vec4 fragColor = vec4(0, 0, 0, 0);
+vec4 sample;
+vec4 accColor = vec4(0, 0, 0, 0);
 vec3 direction;
-vec3 dpos;
+vec3 p;
+
+#define shineConst 32.0
 
 float aspect_ratio = screen_width / screen_height;
 float thetha = 90;
 float focal_H = 1.0;
-vec3 w = normalize(vec3(cameraPos - vec3(0, 0, 0)));
+vec3 w = normalize(vec3(eye - vec3(0, 0, 0)));
 vec3 u = normalize(cross(vec3(0, 1, 0), w));
 // Get vector perpendicular to the camera startPoint and the world up vector
 vec3 v = normalize(cross(w, u));
 // Get vector perpendicular to the camera startPoint and the vector u to get orthonormal basis
 
-float z_in;
+float start;
 float endPoint;
-
-bool does_hit(vec3 startPoint, vec3 direction) {
-    float y_min, y_max, z_min, z_max;
+/* ----------------------  Function to check if the ray hits the volume ---------------------- */
+/* ----------------------  Reference: https://en.wikipedia.org/wiki/Liang%E2%80%93Barsky_algorithm ----------------------*/
+bool liangBarsky(vec3 startPoint, vec3 direction) {
+    float tuMin=0.0, tuMax=0.0, tvMin=0.0, tvMax=0.0;
     vec3 n = 1 / direction;
-    // if the sign is negative, the ray is going in the negative direction
     if(n.x < 0) {
-        z_in = (ExtentMax.x - startPoint.x) / direction.x;
-        endPoint = (ExtentMin.x - startPoint.x) / direction.x;
+        start = (tMax.x - startPoint.x) * n.x;
+        endPoint = (tMin.x - startPoint.x) * n.x;
     } else {
-        z_in = (ExtentMin.x - startPoint.x) / direction.x;
-        endPoint = (ExtentMax.x - startPoint.x) / direction.x;
+        start = (tMin.x - startPoint.x) * n.x;
+        endPoint = (tMax.x - startPoint.x) * n.x;
     }
 
     if(n.y < 0) {
-        y_min = (ExtentMax.y - startPoint.y) / direction.y;
-        y_max = (ExtentMin.y - startPoint.y) / direction.y;
+        tuMin = (tMax.y - startPoint.y) * n.y;
+        tuMax = (tMin.y - startPoint.y) * n.y;
     } else {
-        y_min = (ExtentMin.y - startPoint.y) / direction.y;
-        y_max = (ExtentMax.y - startPoint.y) / direction.y;
+        tuMin = (tMin.y - startPoint.y) * n.y;
+        tuMax = (tMax.y - startPoint.y) * n.y;
     }
-     // Check intersection with Z-axis
-    if((z_in > y_max)) {
+    if((start > tuMax)) {
         return false;
     }
-    // if the ray y value is out of the volume, return false
-    if(y_min > endPoint) {
+    /* ----------------------  If the ray is outside volume, return false ---------------------- */
+    if(tuMin > endPoint) {
         return false;
     }
-    // replace the z value with the y value if the z value is smaller
-    if(y_min > z_in) {
-        z_in = y_min;
-    }
-    // replace the texture length with the y value if the y value is larger
-    if(y_max < endPoint) {
-        endPoint = y_max;
-    }
-
+    start = max(start, tuMin);
+    endPoint = min(endPoint, tuMax);
     if(n.z < 0) {
-        z_min = (ExtentMax.z - startPoint.z) / direction.z;
-        z_max = (ExtentMin.z - startPoint.z) / direction.z;
+        tvMin = (tMax.z - startPoint.z) * n.z;
+        tvMax = (tMin.z - startPoint.z) * n.z;
     } else {
-        z_min = (ExtentMin.z - startPoint.z) / direction.z;
-        z_max = (ExtentMax.z - startPoint.z) / direction.z;
+        tvMin = (tMin.z - startPoint.z) * n.z;
+        tvMax = (tMax.z - startPoint.z) * n.z;
     }
+    start = max(start, tvMin);
+    endPoint = min(endPoint, tvMax);
+    if(start <= 0 || endPoint <= 0  || start >= endPoint) {
+        /* ---------------------- If any of the above conditions are true, the ray does not hit the volume ---------------------- */
+        return false;
+    } else {
+        /* ----------------------  Ray hits the volume, return true ---------------------- */
+        return true;
+    }
+}
 
-    if(z_min > z_in) {
-        z_in = z_min;
-    }
-    if(z_max < endPoint) {
-        endPoint = z_max;
-    }
-    if(z_in > 0) {
-        if(endPoint > 0) {
-            if(z_in < endPoint) {
-                // Ray hits the volume
-                return true;
-            }
-        }
-    }
-    // if ray does not hit the volume, return false
-    return false;
+/* ----------------------  Bing Phong shading is used to calculate the diffuse and specular component ---------------------- */
+vec4 bingPhongShading(vec3 fPos, vec4 fColor, vec3 dir, vec3 normal) {
+    /*----------------------------- Directional light properties -----------------------------*/
+    vec3 lightDir = normalize(vec3(1.0, 1.0, 1.0));  // Light direction
+    vec3 lightColor = vec3(1.0, 1.0, 1.0);  // Light color
+    float diff = max(dot(normalize(normal), -lightDir), 0.0);
+    /*----------------------------- Calculate the diffuse component-----------------------------*/
+    vec3 diffuse = fColor.rgb * diff * lightColor;
+    /*----------------------------- Calculate the specular component-----------------------------*/
+    vec3 reflected = reflect(-lightDir, normal);
+    float specularIntensity = max(dot(dir, reflected), 0.0);
+    vec3 specular = vec3(pow(specularIntensity, shineConst));
+    /* ----------------------  Return the color and alpha value ---------------------- */
+    return vec4(diffuse + specular, fColor.a);
 }
 
 void main() {
@@ -101,37 +104,58 @@ void main() {
     float yw = (gl_FragCoord.y - screen_height / 2.0 + 0.5) / screen_height;
     // 1/(2tan(pi*thetha/360)))
     float dirn = focal_H / (2.0 * tan(thetha * 3.14 / (180.0 * 2.0)));
-    vec3 startPoint = cameraPos;
+    vec3 startPoint = eye;
     direction = normalize(u * xw + v * yw - dirn * w);
     // Get the direction of the ray using the camera startPoint and the orthonormal basis
     // If the ray does not hit the volume, return black
-    if(!does_hit(startPoint, direction)) {
+    if(!liangBarsky(startPoint, direction)) {
         outColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+    vec3 dir = normalize((gl_FragCoord.xyz - eye));
+
     /*-------------------- Initialize the color and alpha value --------------------*/
-    fragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    accColor = vec4(0.0, 0.0, 0.0, 0.0);
     int i = 1;
-    float currPoint = z_in;
-    while(i ==1) {
-        dpos = startPoint + direction * currPoint;
+    float currPoint = start;
+
+    while(i == 1) {
+        /*-------------------- Propagate the ray down the ray direction --------------------*/
+        /*--------------- p = eye + t*direction ----------------*/
+        p = startPoint + direction * currPoint;
         /*-------------------- Ray exits the volume and hence the loop is broken --------------------*/
         if(currPoint > endPoint) {
             break;
         }
-        /*-------------------- Early Ray Termination if reached threashold --------------------*/
-        if(fragColor.a > 0.95) {
+        /*-------------------- Early Ray Termination if reached threshold --------------------*/
+        if(accColor.a > 0.95) {
             break;
         }
-        // Get the color from the transfer function and the value from the volume texture
         /*--------------------- Tri-linear interpolation performed ---------------------*/
-        value = texture(texture3d, (dpos + ((ExtentMax - ExtentMin) / 2)) / (ExtentMax - ExtentMin));
-        s = value.r;
-        vec4 src = texture(transferfun, s);
-        // calculate the color and alpha value using the transfer function and the volume texture
-        fragColor.rgb = fragColor.rgb + (1.0 - fragColor.a) * src.rgb * s;
-        fragColor.a = fragColor.a + (1.0 - fragColor.a) * s;
+        sample = texture(volumeTexture, (p + ((tMax - tMin) / 2)) / (tMax - tMin));
+        /*--------------- Amount of color and alpha value is determined by the volume density---------------*/
+
+        /* ---------------------- calculate the color and alpha value using the transfer function and the volume texture ---------------------- */
+        vec4 transferFuncColor = texture(transferfun, sample.r);
+        /* ----------------------  Calculate the normal vector from the normal texture ---------------------- */
+        vec3 normalFromTexture = texture(normalTexture, gl_FragCoord.xyz).rgb;
+        vec3 normal = normalize(normalFromTexture * 2.0 - 1.0);
+        /* ---------------------- Reference: https://www.khronos.org/opengl/wiki/Calculating_a_Surface_Normal ---------------------- */
+        /* ---------------------- Reference: https://learnopengl.com/Advanced-Lighting/Normal-Mapping ---------------------- */
+        float normal_mag = length(normal);
+        if(normal_mag > 0.01 && currPoint > stepSize) {
+
+            transferFuncColor = bingPhongShading(p, transferFuncColor, -dir, normalize(normal));
+        }
+        /* ---------------------- Perform the shading only if the normal vector is not zero ---------------------- */
+        if(transferFuncColor.a > 0.0) {
+            accColor = accColor + (1.0 - accColor.a) * transferFuncColor * sample.r;
+        }
+        /* ---------------------- Composite the color and alpha sample using the front-to-back compositing if opactiy at that point is greater than zero---------------------- */
         currPoint += stepSize;
+        /* ---------------------- Increment the current point by the step size to get the next point on the ray ---------------------- */
+        /* ----------------------  Step size determines the quality of the image ---------------------- */
     }
-    outColor = fragColor;
+    outColor = accColor;
+    /* ----------------------  Final color and alpha value is assigned to the output color ---------------------- */
 }

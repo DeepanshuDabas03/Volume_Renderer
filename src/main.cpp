@@ -29,26 +29,41 @@ bool is_ok = false;
 /*--------------------------- Scaler index of the Transfer function array ---------------------------*/
 int trans_coord;
 /*---------------------------Function Declarations---------------------------*/
-void UpdateTransferFunction(int);
+void fileIterator(std::string, std::vector<std::string> &);
+std::string UpdateTransferFunction(std::string);
+bool saveTransferFunction(std::string);
+void computeNormals();
 void createBoundingbox(unsigned int &, unsigned int &);
 void setupModelTransformation(unsigned int &);
 void setupViewTransformation(unsigned int &);
 void setupProjectionTransformation(unsigned int &);
 glm::vec3 getTrackBallVector(double x, double y);
-void setUniforms(unsigned int &);
 /* --------------------------- Camera Position---------------------------*/
 glm::vec4 camPos = glm::vec4(0, 0, 280.0, 1.0);
 float a = 256, b = 256, c = 256;
-const int volume_size = a * b * c;
 /* ---------------------------Volume size = 256 * 256 * 256---------------------------*/
+const int volume_size = a * b * c;
+/*--------------------------- Step size for ray ---------------------------*/
 float step_size = 2.0f;
 /*--------------------------- Array to store loaded volume data---------------------------*/
 GLubyte *volume_data = new GLubyte[volume_size];
+GLubyte *normals = new GLubyte[volume_size];
 /*--------------------------- Pointer to the location of volume---------------------------*/
-const char *location="Null";
+const char *location = "Null";
+/*--------------------------- File name to save transfer function---------------------------*/
+char fileName[1024];
+/*--------------------------- Array to store volume data, transfer function file names---------------------------*/
+std::string path = "./data";
+std::vector<std::string> files;
+std::string pathT = "./transferFunction";
+std::vector<std::string> transferfiles;
+
+/*--------------------------- Current transfer function file name---------------------------*/
+std::string currentTransferFunction ;
 /* --------------------------- Create a transfer function Array with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue---------------------------*/
 GLfloat *transfer_function = new GLfloat[1024];
-GLuint VAO, transferfun, texture3d;
+/* --------------------------- Shader programs ---------------------------*/
+GLuint VAO, transferfun, volumeTexture, normalTexture;
 
 int main(int, char **)
 {
@@ -58,36 +73,34 @@ int main(int, char **)
     /*------------------ Background Color(Default Color)------------------*/
     ImVec4 clearColor = ImVec4(1.0f, 1.0f, 1.0f, 1.00f);
     /*------------------ RGBA values for the Transfer function ------------------*/
-    float RGBA[4] = {0.0f, 0.0f, 0.0f, 1.00f};
+    float RGBA[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     /*
     ------------------ Open directory and iterator over each file and add them to files array ------------------
     ------------------ These files will be used to load volume data from file ------------------
     ------------------ User then can select the desired volume data from the GUI ------------------
     */
-    std::string path = "./data";
-    std::vector<std::string> files;
-    for (const auto &entry : fs::directory_iterator(path))
-    {
-        std::filesystem::path outfilename = entry.path();
-        std::string outfilename_str = outfilename.string();
-        const char *path = outfilename_str.c_str();
-        files.push_back(path);
-    }
+    fileIterator(path, files);
+    fileIterator(pathT, transferfiles);
+    
+
+    currentTransferFunction = UpdateTransferFunction("./transferFunction/default");
+        
+
     memset(volume_data, 0, volume_size);
     /*------------------ Create a shader program------------------*/
     unsigned int shaderProgram = createProgram("./shaders/vshader.vs", "./shaders/fshader.fs");
     glUseProgram(shaderProgram);
-
-    glGenTextures(1, &texture3d);
+    /*------------------ Create Textures for volume data ------------------*/
+    glGenTextures(1, &volumeTexture);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_3D, texture3d);
+    glBindTexture(GL_TEXTURE_3D, volumeTexture);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
-    /*------------------  Create Textures ------------------*/
+    /*------------------  Create Textures for transfer function ------------------*/
     glGenTextures(1, &transferfun);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_1D, transferfun);
@@ -97,17 +110,42 @@ int main(int, char **)
     glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glGenVertexArrays(1, &VAO);
 
+    /* --------------------------- Bind location of variables from shader program  for volume texture ---------------------------*/
+    GLuint tex1 = glGetUniformLocation(shaderProgram, "volumeTexture");
+
+    unsigned int VAO;
+    glGenVertexArrays(1, &VAO);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_3D, volumeTexture);
+    glUniform1i(tex1, 0);
+    /* --------------------------- Bind location of variables from shader program  for transfer function texture ---------------------------*/
+    GLuint tex2 = glGetUniformLocation(shaderProgram, "transferfun");
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_1D, transferfun);
+    glUniform1i(tex2, 1);
+    /* --------------------------- Bind location of variables from shader program  for normal texture and also create normal texture ---------------------------*/
+    glGenTextures(1, &normalTexture);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_3D, normalTexture);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB, a, b, c, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr); // Provide nullptr as data for now
+    glUniform1i(glGetUniformLocation(shaderProgram, "normalTexture"), 2);
     glUseProgram(shaderProgram);
+    /*------------------ Setup Transformations------------------*/
     setupModelTransformation(shaderProgram);
     setupViewTransformation(shaderProgram);
     setupProjectionTransformation(shaderProgram);
-
-    createBoundingbox(shaderProgram, VAO); //  Bounding box;
+    /*------------------ Create Bounding box------------------*/
+    createBoundingbox(shaderProgram, VAO);
 
     oldX = oldY = currentX = currentY = 0.0;
     int prevLeftButtonState = GLFW_RELEASE;
     glEnable(GL_DEPTH_TEST);
-
+    /*------------------ Main loop------------------*/
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -178,10 +216,12 @@ int main(int, char **)
             /*------------------ Window Properties ------------------*/
             ImGui::Begin("Window Properties", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
             ImGui::SetWindowFontScale(1.25);
-            std::string title="Current Volume: "+std::string(location);
-            ImGui::Text(title.c_str(),NULL);
+            std::string title = "Current Volume: " + std::string(location);
+            ImGui::Text(title.c_str(), NULL);
+            std::string function = "Current Transfer Function: " + std::string(currentTransferFunction);
+            ImGui::Text(function.c_str(), NULL);
             /*------------------ Create Menu of Options Of Volume ------------------ */
-            if (ImGui::BeginMenu("Volume Data"))
+            if (ImGui::BeginMenu("Select Volume Data"))
             {
                 for (int i = 0; i < files.size(); i++)
                 {
@@ -189,6 +229,8 @@ int main(int, char **)
                     {
                         /*------------------ Reset volume data------------------*/
                         memset(volume_data, 0, volume_size);
+                        glDeleteTextures(1, &volumeTexture);
+                        glDeleteTextures(1, &normalTexture);
 
                         location = files[i].c_str();
                         /*--------------------------- Read volume data from file ---------------------------*/
@@ -201,23 +243,48 @@ int main(int, char **)
                         fread(volume_data, sizeof(GLubyte), volume_size, file);
                         fclose(file);
 
-                        /*------------------ Update volume data ------------------*/
+                        /*------------------ Update texture for volume data ------------------*/
                         glUseProgram(shaderProgram);
-                        glGenTextures(1, &texture3d);
+                        glGenTextures(1, &volumeTexture);
                         glActiveTexture(GL_TEXTURE0);
                         /*------------------ Tri-linear interpolation ------------------*/
                         /*------------------ Reference https://learnopengl.com/Getting-started/Textures ------------------*/
-                        glBindTexture(GL_TEXTURE_3D, texture3d);
+                        glBindTexture(GL_TEXTURE_3D, volumeTexture);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
-                        /*------------------ Map transfer function to texture ------------------*/
+                        glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);   
 
-                        UpdateTransferFunction(i);
-                        /*------------------ Update transfer function ------------------*/
+                        computeNormals();
+                        /*------------------ Compute normals ------------------*/
+
+                        glGenTextures(1, &normalTexture);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_3D, normalTexture);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                        glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, a, b, c, GL_RGB, GL_UNSIGNED_BYTE, normals);
+
+                        /*-------------------- Update normal texture with the newly calculated normals ------------------*/
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("Select Transfer Function"))
+            {
+                for (int i = 0; i < transferfiles.size(); i++)
+                {
+                    if (ImGui::MenuItem(transferfiles[i].c_str()))
+                    {
+                        currentTransferFunction = UpdateTransferFunction(transferfiles[i]);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_1D, transferfun);
+                        glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_FLOAT, transfer_function);
                     }
                 }
                 ImGui::EndMenu();
@@ -237,7 +304,13 @@ int main(int, char **)
             ImGui::SliderInt("Scalar Index", &trans_coord, 0, 255);
             ImGui::ColorPicker4("Change Color", (float *)&RGBA, ImGuiColorEditFlags_DisplayRGB);
             ImGui::SliderFloat("Step Size", &step_size, 1.0f, 20.0f);
+            ImGui::Text("Enter Output TF File Name:");
+            ImGui::InputTextWithHint("", "Enter File Name", fileName, IM_ARRAYSIZE(fileName));
+            if(ImGui::Button("Save Transfer Function")){
+                saveTransferFunction(fileName);
+            }
             ImGui::SetColorEditOptions(ImGuiColorEditFlags_Float);
+
 
             // Update transfer function based on user input of coordinates and RGBA values
             transfer_function[trans_coord * 4] = RGBA[0];
@@ -263,26 +336,13 @@ int main(int, char **)
 
             glUniform1f(vstep_size, step_size);
 
-            GLuint vExtentMin = glGetUniformLocation(shaderProgram, "extentmin");
+            GLuint vMin = glGetUniformLocation(shaderProgram, "Mini");
 
-            glUniform3f(vExtentMin, 0, 0, -c);
+            glUniform3f(vMin, 0, 0, -c);
 
-            GLuint vExtentMax = glGetUniformLocation(shaderProgram, "extentmax");
+            GLuint vMax = glGetUniformLocation(shaderProgram, "Maxi");
 
-            glUniform3f(vExtentMax, a, b, 0);
-
-            GLuint tex1 = glGetUniformLocation(shaderProgram, "texture3d");
-
-            unsigned int VAO;
-            glGenVertexArrays(1, &VAO);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_3D, texture3d);
-            glUniform1i(tex1, 0);
-
-            GLuint tex2 = glGetUniformLocation(shaderProgram, "transferfun");
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_1D, transferfun);
-            glUniform1i(tex2, 1);
+            glUniform3f(vMax, a, b, 0);
         }
 
         /*------------------Rendering------------------*/
@@ -302,66 +362,99 @@ int main(int, char **)
         glfwSwapBuffers(window);
     }
     delete[] volume_data;
-
+    delete[] normals;
+    delete[] transfer_function;
     cleanup(window);
 
     return 0;
 }
-/*--------------------------- Based on volume setup default transfer function ---------------------------*/
-void UpdateTransferFunction(int vol)
+/* --------------------------- Function to Iterate over files in a directory and add them to a vector ---------------------------*/
+void fileIterator(std::string path, std::vector<std::string> &files)
 {
-    switch (vol)
+    for (const auto &entry : fs::directory_iterator(path))
     {
-    case 0:
-        /*--------------------------- Aneurism Transfer Function ---------------------------*/
-        for (int i = 0; i < 256; i++)
-        {
-            transfer_function[i * 4] = i / 256;
-            transfer_function[i * 4 + 1] = i / 256;
-            transfer_function[i * 4 + 2] = i / 256;
-            transfer_function[i * 4 + 3] = i / 256;
+        std::filesystem::path outfilename = entry.path();
+        std::string outfilename_str = outfilename.string();
+        const char *path = outfilename_str.c_str();
+        for(int i=0;i<files.size();i++){
+            if(files[i]==path){
+                continue;
+            }
         }
-        break;
-    case 1:
-        /*--------------------------- Bonzai Transfer Function --------------------------- */
-        for (int i = 0; i < 256; i++)
+        files.push_back(path);
+    }
+}
+/* --------------------------- Function to update transfer function based on user choice ---------------------------*/
+std::string UpdateTransferFunction(std::string fileName){
+    FILE *file = fopen(fileName.c_str(), "rb");
+    if (NULL == file)
+    {
+        file=fopen("./transferFunction/default", "rb");
+        if (NULL == file)
         {
-            transfer_function[i * 4] = i / 256;
-            transfer_function[i * 4 + 1] = i / 256;
-            transfer_function[i * 4 + 2] = i / 256;
-            transfer_function[i * 4 + 3] = i / 256;
+            fprintf(stderr, "Error opening default transfer function file\n");
+            exit(0);
         }
-        break;
-    case 2:
-        /*--------------------------- Mri Ventricles Transfer Function --------------------------- */
-        for (int i = 0; i < 256; i++)
+        fileName="./transferFunction/default";
+    }
+    fread(transfer_function, sizeof(GLfloat), 1024, file);
+    fclose(file);
+    return fileName;
+
+}
+/* -------------------Save transfer function to a file in transferFunction folder------------------- */
+bool saveTransferFunction(std::string fileName){
+    std::string path = "./transferFunction/"+fileName;
+    FILE *file = fopen(path.c_str(), "wb");
+    if (NULL == file)
+    {
+        fprintf(stderr, "Error opening file\n");
+        return 1;
+    }
+    fwrite(transfer_function, sizeof(GLfloat), 1024, file);
+    for(int i=0;i<transferfiles.size();i++){
+        if(transferfiles[i]==path){
+            return 0;
+        }
+    }
+    transferfiles.push_back(path);
+    fclose(file);
+    return 0;
+}
+
+/*------------------------------ Function to compute normals using central differences method ------------------------------*/
+void computeNormals()
+{
+    int nx = a;
+    int ny = b;
+    int nz = c;
+    for (int x = 1; x < nx - 1; ++x)
+    {
+        for (int y = 1; y < ny - 1; ++y)
         {
-            transfer_function[i * 4] = i / 256;
-            transfer_function[i * 4 + 1] = i / 256;
-            transfer_function[i * 4 + 2] = i / 256;
-            transfer_function[i * 4 + 3] = i / 256;
+            for (int z = 1; z < nz - 1; ++z)
+            {
+                /*--------------- Compute directional derivatives using central differences ------------------*/
+                int idx = x * ny * nz + y * nz + z;
+                double fx = static_cast<double>(volume_data[(x + 1) * ny * nz + y * nz + z]) -
+                            static_cast<double>(volume_data[(x - 1) * ny * nz + y * nz + z]);
+                double fy = static_cast<double>(volume_data[x * ny * nz + (y + 1) * nz + z]) -
+                            static_cast<double>(volume_data[x * ny * nz + (y - 1) * nz + z]);
+                double fz = static_cast<double>(volume_data[x * ny * nz + y * nz + (z + 1)]) -
+                            static_cast<double>(volume_data[x * ny * nz + y * nz + (z - 1)]);
+
+                double norm = std::sqrt(fx * fx + fy * fy + fz * fz);
+
+                if(norm==0)
+                {
+                    norm = 1;
+                }
+                /*--------------------------- Compute normal vector and store in the 'normals' array, since need to store in GLubyte format , we need to convert to 0-255 range ---------------------------*/
+                normals[idx] = static_cast<GLubyte>(std::round(fx / norm * 255.0));
+                normals[idx + 1] = static_cast<GLubyte>(std::round(fy / norm * 255.0));
+                normals[idx + 2] = static_cast<GLubyte>(std::round(fz / norm * 255.0));
+            }
         }
-        break;
-    case 3:
-        /*--------------------------- Foot Transfer Function ---------------------------*/
-        for (int i = 0; i < 256; i++)
-        {
-            transfer_function[i * 4] = i / 256;
-            transfer_function[i * 4 + 1] = i / 256;
-            transfer_function[i * 4 + 2] = i / 256;
-            transfer_function[i * 4 + 3] = i / 256;
-        }
-        break;
-    default:
-        /*--------------------------- Default GrayScale Transfer function ---------------------------*/
-        for (int i = 0; i < 256; i++)
-        {
-            transfer_function[i * 4] = i / 256;
-            transfer_function[i * 4 + 1] = i / 256;
-            transfer_function[i * 4 + 2] = i / 256;
-            transfer_function[i * 4 + 3] = i / 256;
-        }
-        break;
     }
 }
 /*------------------ Create Bounding box by using code from assignments------------------*/

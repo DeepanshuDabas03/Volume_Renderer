@@ -1,24 +1,23 @@
 #version 330 core
-
+/* ----------------------- Inputs to vShader ----------------------- */
 layout (location = 0) in vec3 vVertex;
 
+/* ----------------------- Uniforms from Main----------------------- */
 uniform mat4 vModel;
 uniform mat4 vView;
 uniform mat4 vProjection;
-vec3 vColor = vec3(1.0, 0.0, 0.0);
 uniform vec3 camPosition;
-uniform vec3 extentmin;
-uniform vec3 extentmax;
+uniform vec3 Mini;
+uniform vec3 Maxi;
 
-out vec3 fColor;
-out vec3 cameraPos;
-out vec3 ExtentMax;
-out vec3 ExtentMin;
+/* ----------------------- Outputs to fShader ----------------------- */
+out vec3 eye;
+out vec3 tMax;
+out vec3 tMin;
 
 void main() {
 	gl_Position = vProjection * vView * vModel * vec4(vVertex, 1.0);
-    cameraPos = camPosition;
-	ExtentMax = vec3(vModel*vec4(extentmax,1.0));
-	ExtentMin = vec3(vModel*vec4(extentmin,1.0));
-	fColor = vColor; //Interpolate color
+    eye = camPosition;
+	tMax = vec3(vModel*vec4(Maxi,1.0));
+	tMin = vec3(vModel*vec4(Mini,1.0));
 }
