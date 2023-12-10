@@ -14,7 +14,7 @@ Before building and running the application, make sure you have the following de
 
 - OpenGL
 - GLFW
-- CMake : Minimum Version 27
+- CMake : Minimum Version 22
 - Make
 - glm
 
@@ -27,6 +27,10 @@ Follow these steps to build the volume rendering application:
 
 ## Usage
 - In Main.cpp we can provide path of other data files also, currently we do not have support for providing using command line(will be added before final deadline)
-- There are 4 data to visualise currently,can be changed later on by manipulating volume size currently 256x256x256
+- There are 5 data to visualise currently,can be changed later on by manipulating volume size currently 256x256x256
 
 - Once the application is running, use the interactive controls to manipulate the transfer function and explore the volume rendering. Refer to the documentation for specific details on how to use the transfer function and customize the rendering
+## Cleanup
+A cleanup script is provided run by :
+- Provide running permission to clean_up.sh by chmod +x clean_up.sh
+- run clean_up.sh by ./clean_up.sh
