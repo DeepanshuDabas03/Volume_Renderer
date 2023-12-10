@@ -59,13 +59,14 @@ std::string pathT = "./transferFunction";
 std::vector<std::string> transferfiles;
 
 /*--------------------------- Current transfer function file name---------------------------*/
-std::string currentTransferFunction ;
+std::string currentTransferFunction;
 /* --------------------------- Create a transfer function Array with 256*4 size since we have 256 values and each have 4 values for RGBA where A is alpha and R is red, G is green and B is blue---------------------------*/
 GLfloat *transfer_function = new GLfloat[1024];
 /* --------------------------- Shader programs ---------------------------*/
 GLuint VAO, transferfun, volumeTexture, normalTexture;
+int mode=1;
 
-int main(int, char **)
+int main()
 {
     /*------------------ Setup window------------------*/
     GLFWwindow *window = setupWindow(screen_width, screen_height);
@@ -81,10 +82,8 @@ int main(int, char **)
     */
     fileIterator(path, files);
     fileIterator(pathT, transferfiles);
-    
 
     currentTransferFunction = UpdateTransferFunction("./transferFunction/default");
-        
 
     memset(volume_data, 0, volume_size);
     /*------------------ Create a shader program------------------*/
@@ -192,16 +191,29 @@ int main(int, char **)
                 setupViewTransformation(shaderProgram);
             }
             /*------------------ Rotate based on mouse drag movements------------------*/
+            float angle = 0.0f;
             prevLeftButtonState = leftButtonState;
-            if (isDragging && (currentX != oldX || currentY != oldY))
+            if (mode == 0)
             {
-                glm::vec3 va = getTrackBallVector(oldX, oldY);
-                glm::vec3 vb = getTrackBallVector(currentX, currentY);
-                float angle = acos(std::min(1.0f, glm::dot(va, vb)));
-                glm::vec3 axis_in_camera_coord = glm::cross(va, vb);
-                glm::mat3 camera2object = glm::inverse(glm::mat3(viewT * modelT));
-                glm::vec3 axis_in_object_coord = camera2object * axis_in_camera_coord;
-                glm::mat4 dummy = glm::rotate(modelT, -angle, axis_in_object_coord);
+                if (isDragging && (currentX != oldX || currentY != oldY))
+                {
+                    glm::vec3 va = getTrackBallVector(oldX, oldY);
+                    glm::vec3 vb = getTrackBallVector(currentX, currentY);
+                    angle = acos(std::min(1.0f, glm::dot(va, vb)));
+                    glm::vec3 axis_in_camera_coord = glm::cross(va, vb);
+                    glm::mat3 camera2object = glm::inverse(glm::mat3(viewT * modelT));
+                    glm::vec3 axis_in_object_coord = camera2object * axis_in_camera_coord;
+                    glm::mat4 dummy = glm::rotate(modelT, -angle, axis_in_object_coord);
+                    camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
+                    setupViewTransformation(shaderProgram);
+                    oldX = currentX;
+                    oldY = currentY;
+                }
+            }
+            else
+            {
+                angle += 0.005;
+                glm::mat4 dummy = glm::rotate(modelT, angle, glm::vec3(0.0, 1.0, 0.0));
                 camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
                 setupViewTransformation(shaderProgram);
                 oldX = currentX;
@@ -220,6 +232,14 @@ int main(int, char **)
             ImGui::Text(title.c_str(), NULL);
             std::string function = "Current Transfer Function: " + std::string(currentTransferFunction);
             ImGui::Text(function.c_str(), NULL);
+            if(ImGui::Button("Toggle Auto Rotate", ImVec2(200, 50))){
+                if(mode==0){
+                    mode=1;
+                }
+                else{
+                    mode=0;
+                }
+            }
             /*------------------ Create Menu of Options Of Volume ------------------ */
             if (ImGui::BeginMenu("Select Volume Data"))
             {
@@ -255,7 +275,7 @@ int main(int, char **)
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                         glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                        glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);   
+                        glTexImage3D(GL_TEXTURE_3D, 0, GL_INTENSITY, a, b, c, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, volume_data);
 
                         computeNormals();
                         /*------------------ Compute normals ------------------*/
@@ -306,11 +326,11 @@ int main(int, char **)
             ImGui::SliderFloat("Step Size", &step_size, 1.0f, 20.0f);
             ImGui::Text("Enter Output TF File Name:");
             ImGui::InputTextWithHint("", "Enter File Name", fileName, IM_ARRAYSIZE(fileName));
-            if(ImGui::Button("Save Transfer Function")){
+            if (ImGui::Button("Save Transfer Function"))
+            {
                 saveTransferFunction(fileName);
             }
             ImGui::SetColorEditOptions(ImGuiColorEditFlags_Float);
-
 
             // Update transfer function based on user input of coordinates and RGBA values
             transfer_function[trans_coord * 4] = RGBA[0];
@@ -376,8 +396,10 @@ void fileIterator(std::string path, std::vector<std::string> &files)
         std::filesystem::path outfilename = entry.path();
         std::string outfilename_str = outfilename.string();
         const char *path = outfilename_str.c_str();
-        for(int i=0;i<files.size();i++){
-            if(files[i]==path){
+        for (int i = 0; i < files.size(); i++)
+        {
+            if (files[i] == path)
+            {
                 continue;
             }
         }
@@ -385,26 +407,27 @@ void fileIterator(std::string path, std::vector<std::string> &files)
     }
 }
 /* --------------------------- Function to update transfer function based on user choice ---------------------------*/
-std::string UpdateTransferFunction(std::string fileName){
+std::string UpdateTransferFunction(std::string fileName)
+{
     FILE *file = fopen(fileName.c_str(), "rb");
     if (NULL == file)
     {
-        file=fopen("./transferFunction/default", "rb");
+        file = fopen("./transferFunction/default", "rb");
         if (NULL == file)
         {
             fprintf(stderr, "Error opening default transfer function file\n");
             exit(0);
         }
-        fileName="./transferFunction/default";
+        fileName = "./transferFunction/default";
     }
     fread(transfer_function, sizeof(GLfloat), 1024, file);
     fclose(file);
     return fileName;
-
 }
 /* -------------------Save transfer function to a file in transferFunction folder------------------- */
-bool saveTransferFunction(std::string fileName){
-    std::string path = "./transferFunction/"+fileName;
+bool saveTransferFunction(std::string fileName)
+{
+    std::string path = "./transferFunction/" + fileName;
     FILE *file = fopen(path.c_str(), "wb");
     if (NULL == file)
     {
@@ -412,8 +435,10 @@ bool saveTransferFunction(std::string fileName){
         return 1;
     }
     fwrite(transfer_function, sizeof(GLfloat), 1024, file);
-    for(int i=0;i<transferfiles.size();i++){
-        if(transferfiles[i]==path){
+    for (int i = 0; i < transferfiles.size(); i++)
+    {
+        if (transferfiles[i] == path)
+        {
             return 0;
         }
     }
@@ -445,7 +470,7 @@ void computeNormals()
 
                 double norm = std::sqrt(fx * fx + fy * fy + fz * fz);
 
-                if(norm==0)
+                if (norm == 0)
                 {
                     norm = 1;
                 }
