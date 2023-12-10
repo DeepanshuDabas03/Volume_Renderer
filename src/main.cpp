@@ -241,6 +241,10 @@ int main()
                     mode=0;
                 }
             }
+            if(ImGui::Button("Reset Camera", ImVec2(200, 50))){
+                camPos = glm::vec4(0, 0, 280.0, 1.0);
+                setupViewTransformation(shaderProgram);
+            }
             /*------------------ Create Menu of Options Of Volume ------------------ */
             if (ImGui::BeginMenu("Select Volume Data"))
             {
@@ -327,7 +331,7 @@ int main()
             ImGui::SliderFloat("Step Size", &step_size, 1.0f, 20.0f);
             ImGui::Text("Enter Output TF File Name:");
             ImGui::InputTextWithHint("", "Enter File Name", fileName, IM_ARRAYSIZE(fileName));
-            if (ImGui::Button("Save Transfer Function"))
+            if (ImGui::Button("Save Transfer Function",ImVec2(200, 25)))
             {
                 saveTransferFunction(fileName);
             }
