@@ -212,6 +212,7 @@ int main()
             }
             else
             {
+                /*------------------ Auto rotate, credits lab 5     ------------------*/
                 angle += 0.005;
                 glm::mat4 dummy = glm::rotate(modelT, angle, glm::vec3(0.0, 1.0, 0.0));
                 camPos = glm::vec4(glm::mat3(dummy) * glm::vec3(camPos), 1.0);
