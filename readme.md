@@ -45,29 +45,29 @@ Follow these steps to build the volume rendering application:
 ## Output: Grayscale vs Transfer Functions
 <ul>
  <li>  <h3>Human Foot</h3>
-  <img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_GrayScale.png"  width=50% height=50%>
-    <img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_Back_GrayScale.png.png" width=50% height=50%>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_TF.png"  width=50% height=50%>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_Back_TF.png"  width=50% height=50%>
+  <img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_GrayScale.png"   height=50%>
+    <img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_Back_GrayScale.png.png"  height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_TF.png"   height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Foot_Back_TF.png"   height=50%>
 
    </li>
    <li>
 <h3>Bonzai</h3>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/bonzai_gray_scale.png"  width=50% height=50%>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/bonzai_TF.png"  width=50% height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/bonzai_gray_scale.png"   height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/bonzai_TF.png"   height=50%>
      </li>
    <li> <h3> MRI Ventricles </h3>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/mri_ventricle_gray_scale.png"  width=50% height=50%>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/mri_ventricle_TF.png"  width=50% height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/mri_ventricle_gray_scale.png"   height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/mri_ventricle_TF.png"   height=50%>
      </li>
      <li>
    <h3> Anuerism </h3>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/anuerism_gray_scale.png"  width=50% height=50%>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/anureism_TF.png"  width=50% height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/anuerism_gray_scale.png"   height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/anureism_TF.png"   height=50%>
        </li>
        <li>
   <h3> Human Skull </h3>
-<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Skull_gray_scale.png"  width=50% height=50%>
+<img src="https://github.com/DeepanshuDabas03/Volume_Renderer/blob/main/Output/Images/Skull_gray_scale.png"   height=50%>
 </li>
 
 </ul>
